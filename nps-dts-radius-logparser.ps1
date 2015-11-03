@@ -1,14 +1,31 @@
 # Log parser for MS NPS dts RADIUS logs
-# v 0.0.1 / 20120412
+# v 0.0.2 / 20120412
 # Author: Jochen Bartl <jochen.bartl@gmail.com>
+# Contributor: CircaLucid
 
-$filename = $args[0]
+Param(
+  [string]$filename,
+  [string]$filter
+)
+if(-not($filename)){$filename = Read-Host "File Name?" }
+
+$AUTHENTICATION_TYPE = @{
+    1 = "PAP";
+    2 = "CHAP";
+    3 = "MS-CHAP";
+    4 = "MS-CHAP v2";
+    5 = "EAP";
+    7 = "None";
+    8 = "Custom";
+    11 = "PEAP";
+}
 
 $PACKET_TYPES = @{
 	1 = "Access-Request";
 	2 = "Access-Accept";
 	3 = "Access-Reject";
-	4  = "Accounting-Request"
+	4  = "Accounting-Request";
+	11 = "Access-Challenge";
 }
 
 $REASON_CODES = @{
@@ -45,29 +62,27 @@ $REASON_CODES = @{
 	97 = "IAS_UNEXPECTED_REQUEST";
 }
 
-
+$i = 0
 foreach ($line in gc $filename) {
-	$logline = [xml]$line
-	$logline = $logline.Event
-	
-	$logobj = New-Object PSObject
-	Add-Member -InputObject $logobj -MemberType NoteProperty -name "Timestamp" -value $logline.Timestamp."#text"
-	Add-Member -InputObject $logobj -MemberType NoteProperty -name "ComputerName" -value $logline."Computer-Name"."#text"
-	Add-Member -InputObject $logobj -MemberType NoteProperty -name "NpPolicyName" -value $logline."NP-Policy-Name"."#text"
-	Add-Member -InputObject $logobj -MemberType NoteProperty -name "ProxyPolicyName" -value $logline."Proxy-Policy-Name"."#text"
-	Add-Member -InputObject $logobj -MemberType NoteProperty -name "EventSource" -value $logline."Event-Source"."#text"
-	Add-Member -InputObject $logobj -MemberType NoteProperty -name "UserName" -value $logline."User-Name"."#text"
-	Add-Member -InputObject $logobj -MemberType NoteProperty -name "ClientIpAddress" -value $logline."Client-IP-Address"."#text"
-	Add-Member -InputObject $logobj -MemberType NoteProperty -name "ClientVendor" -value $logline."Client-Vendor"."#text"
-	Add-Member -InputObject $logobj -MemberType NoteProperty -name "ClientFriendlyName" -value $logline."Client-Friendly-Name"."#text"
-	Add-Member -InputObject $logobj -MemberType NoteProperty -name "SamAccountName" -value $logline."SAM-Account-Name"."#text"
-	
-	
-	
-	Add-Member -InputObject $logobj -MemberType NoteProperty -name "PacketType" -value $logline."Packet-Type"."#text"
-	Add-Member -InputObject $logobj -MemberType NoteProperty -name "PacketTypeName" -value $PACKET_TYPES[[int]$logline."Packet-Type"."#text"]
-	Add-Member -InputObject $logobj -MemberType NoteProperty -name "ReasonCode" -value $logline."Reason-Code"."#text"
-	Add-Member -InputObject $logobj -MemberType NoteProperty -name "ReasonCodeName" -value $REASON_CODES[[int]$logline."Reason-Code"."#text"]
-	
-	$logobj
+    if(!$line.StartsWith("<")){ continue; }
+    if($filter -and !($line.Contains($filter))){ continue; }
+    $logline = ([xml]$line).Event
+    "Timestamp          : "+$logline.Timestamp."#text"
+    "ComputerName       : "+$logline."Computer-Name"."#text"
+    "NpPolicyName       : "+$logline."NP-Policy-Name"."#text"
+    "ProxyPolicyName    : "+$logline."Proxy-Policy-Name"."#text"
+    "EventSource        : "+$logline."Event-Source"."#text"
+    "UserName           : "+$logline."User-Name"."#text"
+    "ClientIpAddress    : "+$logline."Client-IP-Address"."#text"
+    "ClientVendor       : "+$logline."Client-Vendor"."#text"
+    "ClientFriendlyName : "+$logline."Client-Friendly-Name"."#text"
+    "SamAccountName     : "+$logline."SAM-Account-Name"."#text"
+    "AuthenticationType : $($logline.'Authentication-Type'.'#text') ($($AUTHENTICATION_TYPE[[int]$logline.'Authentication-Type'.'#text']))"
+    if($logline.'Packet-Type'.'#text' -ne "3"){ $color = "white" } else { $color = "red" }
+    Write-Host "PacketType         : $($logline.'Packet-Type'.'#text') ($($PACKET_TYPES[[int]$logline.'Packet-Type'.'#text']))" -ForeGroundColor $color
+    if($logline.'Reason-Code'.'#text' -eq "0"){ $color = "white" } else { $color = "red" }
+    Write-Host "ReasonCode         : $($logline.'Reason-Code'.'#text') ($($REASON_CODES[[int]$logline.'Reason-Code'.'#text']))" -ForeGroundColor $color
+    ""
+    $i++
 }
+"Parsed $i packets"
